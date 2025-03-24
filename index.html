@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Remove: <meta name="csrf-token" content="{{ csrf_token }}"> -->
+    <title>CSV to TXT Processor</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/tailwindcss/2.2.19/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom styles */
+        #dropZoneContent, #fileSelectedContent { transition: opacity 0.3s; }
+        #fileInput:focus + label { border-color: #3b82f6; }
+        .disabled-button { pointer-events: none; }
+        #progressBar { transition: width 0.5s ease-in-out; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <div class="bg-white rounded-lg shadow-lg p-6 mb-8">
+            <h1 class="text-2xl font-bold text-gray-800 mb-6">CSV to TXT Converter</h1>
+            
+            <!-- File Upload Form -->
+            <form id="uploadForm" class="mb-8">
+                <div class="mb-6">
+                    <label for="fileInput" class="block text-gray-700 font-medium mb-2">Upload CSV File <span class="text-sm text-gray-500">(Max 10MB)</span></label>
+                    <div class="flex items-center justify-center w-full">
+                        <label for="fileInput" class="flex flex-col w-full h-32 border-4 border-dashed hover:bg-gray-100 hover:border-gray-300 border-gray-200 rounded-lg cursor-pointer">
+                            <div class="flex flex-col items-center justify-center pt-7" id="dropZoneContent">
+                                <i class="fas fa-cloud-upload-alt text-3xl text-gray-400 mb-2"></i>
+                                <p class="text-gray-500 text-center">Drag and drop your file or click to browse</p>
+                                <p class="text-sm text-gray-400 mt-1">(.csv only)</p>
+                            </div>
+                            <div class="hidden flex-col items-center justify-center pt-7" id="fileSelectedContent">
+                                <i class="fas fa-file-csv text-3xl text-green-500 mb-2"></i>
+                                <p class="text-green-500 font-semibold" id="selectedFileName"></p>
+                                <p class="text-sm text-gray-500 mt-1" id="selectedFileSize"></p>
+                                <button type="button" id="removeFileButton" class="mt-2 text-red-500 hover:text-red-700">
+                                    <i class="fas fa-times-circle mr-1"></i>Remove file
+                                </button>
+                            </div>
+                            <input id="fileInput" type="file" class="hidden" accept=".csv" required />
+                        </label>
+                    </div>
+                    <div id="fileError" class="text-red-500 text-sm mt-2 hidden"></div>
+                </div>
+                <div class="mb-6">
+                    <label class="block text-gray-700 font-medium mb-2">Output Delimiter</label>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <input type="radio" id="comma" name="delimiter" value="," class="mr-2">
+                                <label for="comma">Comma (,)</label>
+                            </div>
+                            <div class="flex items-center mb-2">
+                                <input type="radio" id="tab" name="delimiter" value="\t" checked class="mr-2">
+                                <label for="tab">Tab (\t)</label>
+                            </div>
+                            <div class="flex items-center mb-2">
+                                <input type="radio" id="space" name="delimiter" value=" " class="mr-2">
+                                <label for="space">Space</label>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="flex items-center mb-2">
+                                <input type="radio" id="semicolon" name="delimiter" value=";" class="mr-2">
+                                <label for="semicolon">Semicolon (;)</label>
+                            </div>
+                            <div class="flex items-center mb-2">
+                                <input type="radio" id="pipe" name="delimiter" value="|" class="mr-2">
+                                <label for="pipe">Pipe (|)</label>
+                            </div>
+                       	    <div class="flex items-center">
+                                <input type="radio" id="customDelimiter" name="delimiter" value="custom" class="mr-2">
+                                <label for="customDelimiter">Custom:</label>
+                                <input type="text" id="customDelimiterInput" class="ml-2 border rounded px-2 py-1 w-16" maxlength="1" disabled>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="mb-4">
+                    <label class="block text-gray-700 font-medium mb-2">Encoding</label>
+                    <select id="encodingSelect" class="w-full border rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="" selected>UTF-8 (Default)</option>
+                        <option value="iso-8859-1">ISO-8859-1 (Latin-1)</option>
+                        <option value="cp1252">Windows-1252</option>
+                        <option value="ascii">ASCII</option>
+                    </select>
+                </div>
+                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                    <button type="button" id="previewButton" class="bg-green-600 hover:bg-green-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <i class="fas fa-eye mr-2"></i> Preview
+                    </button>
+                    <button type="button" id="downloadButton" class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-2 px-4 rounded-lg flex items-center justify-center disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                        <i class="fas fa-download mr-2"></i> Process & Download
+                    </button>
+                </div>
+            </form>
+            <!-- Processing Status -->
+            <div id="processingStatus" class="hidden">
+                <div class="flex items-center justify-center mb-4">
+                    <div class="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+                    <span class="ml-3 text-gray-700">Processing file...</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    <div id="progressBar" class="bg-blue-600 h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+            <!-- Error Message -->
+            <div id="errorMessage" class="hidden bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-4 rounded">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-exclamation-circle mt-1"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p id="errorText" class="text-sm"></p>
+                    </div>
+                </div>
+            </div>
+            <!-- Success Message -->
+            <div id="successMessage" class="hidden bg-green-100 border-l-4 border-green-500 text-green-700 p-4 mb-4 rounded">
+                <div class="flex items-start">
+                    <div class="flex-shrink-0">
+                        <i class="fas fa-check-circle mt-1"></i>
+                    </div>
+                    <div class="ml-3">
+                        <p class="text-sm">File processed successfully!</p>
+                    </div>
+                </div>
+            </div>
+            <!-- Preview Section -->
+            <div id="previewSection" class="hidden mt-8">
+                <h2 class="text-xl font-semibold text-gray-800 mb-4">Preview</h2>
+                <div class="border rounded-lg overflow-hidden">
+                    <div class="overflow-x-auto">
+                        <pre id="previewContent" class="p-4 bg-gray-50 text-gray-800 font-mono text-sm"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <!-- Instructions -->
+        <div class="bg-white rounded-lg shadow-lg p-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">How to Use</h2>
+            <ol class="list-decimal pl-5 space-y-2 text-gray-700">
+                <li>Upload your CSV file by dragging and dropping or clicking the upload area.</li>
+                <li>Select the desired output delimiter (default is tab).</li>
+                <li>Choose the encoding if different from UTF-8.</li>
+                <li>Use "Preview" to check the formatted output.</li>
+                <li>Click "Process & Download" to get the text file.</li>
+            </ol>
+        </div>
+    </div>
+    <script type="module" src="/src/csv-processor.js"></script>
+</body>
+</html>
